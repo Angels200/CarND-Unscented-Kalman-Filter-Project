@@ -89,6 +89,7 @@ public:
    */
   void ProcessMeasurement(MeasurementPackage meas_package);
 
+  void NormalizeAngle(double& phi);
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
    * matrix

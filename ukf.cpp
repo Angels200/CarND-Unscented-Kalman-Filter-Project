@@ -24,10 +24,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 3;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = M_PI/4;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -109,7 +109,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 	      */
 
 	      // first measurement
-	      x_ << 1, 1, 1, 1, 0.1;
+	      x_ << 0, 0, 0, 0, 0;
 
 	      // init covariance matrix
 	      P_ << 0.15,    0, 0, 0, 0,
@@ -218,6 +218,8 @@ void UKF::Prediction(double delta_t) {
 	  //set lambda for augmented sigma points
 	  lambda_ = 3 - n_aug_;
 
+	  auto lbd_n_aug_ = lambda_ + n_aug_;
+
 	  //create augmented mean state
 	  x_aug.head(5) = x_;
 	  x_aug(5) = 0;
@@ -236,24 +238,25 @@ void UKF::Prediction(double delta_t) {
 	  Xsig_aug.col(0) = x_aug;
 	  for (int i = 0; i< n_aug_; i++)
 	  {
-	    Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug_) * L.col(i);
-	    Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lambda_ + n_aug_) * L.col(i);
+	    Xsig_aug.col(i + 1) = x_aug + sqrt(lbd_n_aug_) * L.col(i);
+	    Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lbd_n_aug_) * L.col(i);
 	  }
 
 	  /*****************************************************************************
 	  *  Predict Sigma Points
 	  ****************************************************************************/
+	  double p_x,p_y,v,yaw,yawd,nu_a,nu_yawdd;
 	  //predict sigma points
 	  for (int i = 0; i < 2 * n_aug_ + 1; i++)
 	  {
 	    //extract values for better readability
-	    double p_x      = Xsig_aug(0, i);
-	    double p_y      = Xsig_aug(1, i);
-	    double v        = Xsig_aug(2, i);
-	    double yaw      = Xsig_aug(3, i);
-	    double yawd     = Xsig_aug(4, i);
-	    double nu_a     = Xsig_aug(5, i);
-	    double nu_yawdd = Xsig_aug(6, i);
+	    p_x      = Xsig_aug(0, i);
+	    p_y      = Xsig_aug(1, i);
+	    v        = Xsig_aug(2, i);
+	    yaw      = Xsig_aug(3, i);
+	    yawd     = Xsig_aug(4, i);
+	    nu_a     = Xsig_aug(5, i);
+	    nu_yawdd = Xsig_aug(6, i);
 
 	    //predicted state values
 	    double px_p, py_p;
@@ -293,10 +296,10 @@ void UKF::Prediction(double delta_t) {
 	  ****************************************************************************/
 
 	  // set weights
-	  double weight_0 = lambda_ / (lambda_ + n_aug_);
-	  weights_(0) = weight_0;
+
+	  weights_(0) = lambda_ / (lambda_ + n_aug_);
+	  double weight = 0.5 / (n_aug_ + lambda_);
 	  for (int i = 1; i < 2 * n_aug_ + 1; i++) {  //2n+1 weights
-	    double weight = 0.5 / (n_aug_ + lambda_);
 	    weights_(i) = weight;
 	  }
 
@@ -313,12 +316,17 @@ void UKF::Prediction(double delta_t) {
 	    // state difference
 	    VectorXd x_diff = Xsig_pred_.col(i) - x_;
 	    //angle normalization
-	    while (x_diff(3)> M_PI) x_diff(3) -= 2.*M_PI;
-	    while (x_diff(3)<-M_PI) x_diff(3) += 2.*M_PI;
-
+	    /*while (x_diff(3)> M_PI) x_diff(3) -= 2.*M_PI;
+	    while (x_diff(3)<-M_PI) x_diff(3) += 2.*M_PI;*/
+	    NormalizeAngle(x_diff(3));
 	    P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
 	  }
 
+}
+
+void UKF::NormalizeAngle(double& phi)
+{
+	phi = atan2(sin(phi), cos(phi));
 }
 
 /**
